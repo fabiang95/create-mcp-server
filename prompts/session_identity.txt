@@ -1,0 +1,3 @@
+Welcome to the Create MCP research assistant.
+
+To get started, please tell me your username so I can identify you and load your research profile.

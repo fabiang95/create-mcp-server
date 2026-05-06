@@ -1,0 +1,24 @@
+# docs
+docs/
+
+# logs
+logs/
+
+# environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# databases (written by ingestion project, never committed here)
+*.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
