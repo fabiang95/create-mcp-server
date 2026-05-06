@@ -351,3 +351,32 @@ def vector_search(question_vec: list[float], docids: list[str], k: int) -> list[
 def _encode_vec(vec: list[float]) -> bytes:
     import struct
     return struct.pack(f"{len(vec)}f", *vec)
+
+
+# ---------------------------------------------------------------------------
+# interactions
+# ---------------------------------------------------------------------------
+
+def get_interactions(
+    entity_a_id: str,
+    entity_b_id: str,
+    accessible_docids: set[str],
+) -> list[dict]:
+    """Return all interactions between two entities restricted to accessible docs, ordered by date asc."""
+    if not accessible_docids:
+        return []
+    placeholders = ",".join("?" * len(accessible_docids))
+    params: list = [entity_a_id, entity_b_id, entity_b_id, entity_a_id] + list(accessible_docids)
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT *
+            FROM interactions
+            WHERE ((entity_a_id = ? AND entity_b_id = ?)
+                OR (entity_a_id = ? AND entity_b_id = ?))
+              AND source_docid IN ({placeholders})
+            ORDER BY date ASC
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]

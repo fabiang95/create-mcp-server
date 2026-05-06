@@ -19,6 +19,7 @@ from middleware.session import (
 )
 from middleware.access_control import get_accessible_docids
 from middleware.tracing import trace
+from db.connection import init_db
 from db.queries import get_user_by_username, get_valid_interests, get_all_interests
 
 import tools.query_event as _query_event
@@ -29,6 +30,11 @@ import tools.list_characters as _list_characters
 import tools.find_events_by_character as _find_events_by_char
 import tools.set_interest as _set_interest
 import tools.get_interests as _get_interests
+import tools.query_relationship as _query_relationship
+import tools.get_interaction_timeline as _get_interaction_timeline
+
+# Ensure optional tables exist before accepting any requests
+init_db()
 
 mcp = FastMCP("create-mcp")
 
@@ -41,6 +47,8 @@ _list_characters.register(mcp)
 _find_events_by_char.register(mcp)
 _set_interest.register(mcp)
 _get_interests.register(mcp)
+_query_relationship.register(mcp)
+_get_interaction_timeline.register(mcp)
 
 
 # --- Session management tools ---
