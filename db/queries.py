@@ -15,19 +15,27 @@ from config import EVENT_CONFIDENCE_THRESHOLD
 def get_user(user_id: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT user_id, username, role FROM user_access WHERE user_id = ?",
+            "SELECT user_id, role FROM user_access WHERE user_id = ?",
             (user_id,),
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    d = dict(row)
+    d["username"] = d["user_id"]
+    return d
 
 
 def get_user_by_username(username: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT user_id, username, role, accessible_docids FROM user_access WHERE username = ?",
+            "SELECT user_id, role, accessible_docids FROM user_access WHERE user_id = ?",
             (username,),
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    d = dict(row)
+    d["username"] = d["user_id"]
+    return d
 
 
 def get_accessible_docids(user_id: str) -> set[str]:
@@ -277,12 +285,20 @@ def get_chunk_ids_for_docids(docids: list[str]) -> list[str]:
 # interests
 # ---------------------------------------------------------------------------
 
+def _normalize_interest(row: dict) -> dict:
+    """Map actual DB columns to the field names the rest of the code expects."""
+    row = dict(row)
+    row["interest_text"] = row.get("interest", "")
+    row["valid"] = 1 if row.get("validation_state") == "valid" else 0
+    return row
+
+
 def get_valid_interests(user_id: str) -> list[dict]:
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM interests WHERE user_id = ? AND valid = 1", (user_id,)
+            "SELECT * FROM interests WHERE user_id = ? AND validation_state = 'valid'", (user_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    return [_normalize_interest(r) for r in rows]
 
 
 def get_all_interests(user_id: str) -> dict[str, list[dict]]:
@@ -290,8 +306,9 @@ def get_all_interests(user_id: str) -> dict[str, list[dict]]:
         rows = conn.execute(
             "SELECT * FROM interests WHERE user_id = ?", (user_id,)
         ).fetchall()
-    valid = [dict(r) for r in rows if r["valid"] == 1]
-    stale = [dict(r) for r in rows if r["valid"] == 0]
+    all_rows = [_normalize_interest(r) for r in rows]
+    valid = [r for r in all_rows if r["valid"] == 1]
+    stale = [r for r in all_rows if r["valid"] == 0]
     return {"valid": valid, "stale": stale}
 
 
@@ -302,19 +319,17 @@ def insert_interest(
     staleness_threshold: int,
     valid: int,
 ) -> None:
+    import json
+    staleness_config = json.dumps({"type": staleness_type, "threshold": staleness_threshold})
+    validation_state = "valid" if valid else "stale"
     with get_rw_db() as conn:
         conn.execute(
-            """
-            INSERT INTO interests
-                (user_id, interest_text, staleness_type, staleness_threshold, valid, last_validated)
-            VALUES (?, ?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(user_id, interest_text) DO UPDATE SET
-                staleness_type = excluded.staleness_type,
-                staleness_threshold = excluded.staleness_threshold,
-                valid = excluded.valid,
-                last_validated = excluded.last_validated
-            """,
-            (user_id, interest_text, staleness_type, staleness_threshold, valid),
+            "DELETE FROM interests WHERE user_id = ? AND interest = ?",
+            (user_id, interest_text),
+        )
+        conn.execute(
+            "INSERT INTO interests (user_id, interest, staleness_config, validation_state) VALUES (?, ?, ?, ?)",
+            (user_id, interest_text, staleness_config, validation_state),
         )
         conn.commit()
 

@@ -1,7 +1,10 @@
+import os
+_BASE = os.path.dirname(os.path.abspath(__file__))
+
 # Database paths
-MOCK_STORE_DB = "../create-mcp-ingestion/mock_store.db"
-CHUNKS_VEC_DB = "../create-mcp-ingestion/chunks_vec.db"
-FILE_STORE_PATH = "../create-mcp-ingestion/file_store"
+MOCK_STORE_DB = os.path.join(_BASE, "..", "create-mcp-ingestion", "mock_store.db")
+CHUNKS_VEC_DB = os.path.join(_BASE, "..", "create-mcp-ingestion", "chunks_vec.db")
+FILE_STORE_PATH = os.path.join(_BASE, "..", "create-mcp-ingestion", "file_store")
 
 # Ollama
 OLLAMA_URL = "http://localhost:11434"

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
 from prompt_loader import load_prompt
@@ -157,5 +156,11 @@ def _format_interests(interests: list[dict]) -> str:
     return "\n".join(f"- {i['interest_text']}" for i in interests)
 
 
-app = FastAPI(title="create-mcp-server")
-app.mount("/mcp", mcp.streamable_http_app())
+if __name__ == "__main__":
+    import sys
+    import asyncio
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    mcp.run()
+else:
+    app = mcp.streamable_http_app()

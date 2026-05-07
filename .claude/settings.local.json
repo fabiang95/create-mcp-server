@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(/c/Users/fabian.ang.qj/AppData/Local/Programs/Python/Python311/python.exe -c \"import mcp; print\\(mcp.__version__\\)\")",
+      "Bash(/c/Users/fabian.ang.qj/AppData/Local/Programs/Python/Python311/python.exe -m pip show mcp)"
     ]
   }
 }
