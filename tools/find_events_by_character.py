@@ -41,7 +41,7 @@ def register(mcp):
         if not user_id:
             return "Session is not identified. Please provide your username first."
 
-        accessible = get_accessible_docids(user_id)
+        accessible = get_accessible_docids(session_id)
 
         # --- resolve entity ---
         if character_id:

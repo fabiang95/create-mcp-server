@@ -63,10 +63,10 @@ def search_events_fts(description: str) -> list[dict]:
             """
             SELECT e.*
             FROM events e
-            JOIN events_fts fts ON e.event_id = fts.rowid
+            JOIN events_fts fts ON e.rowid = fts.rowid
             WHERE events_fts MATCH ?
               AND e.confidence >= ?
-            ORDER BY rank
+            ORDER BY fts.rank
             """,
             (description, EVENT_CONFIDENCE_THRESHOLD),
         ).fetchall()
@@ -134,9 +134,9 @@ def search_entities_fts(description: str) -> list[dict]:
             """
             SELECT en.*
             FROM entities en
-            JOIN entities_fts fts ON en.entity_id = fts.rowid
+            JOIN entities_fts fts ON en.rowid = fts.rowid
             WHERE entities_fts MATCH ?
-            ORDER BY rank
+            ORDER BY fts.rank
             """,
             (description,),
         ).fetchall()
@@ -195,9 +195,9 @@ def search_summaries_fts(
             f"""
             SELECT s.*
             FROM summaries s
-            JOIN summaries_fts fts ON s.systemdocid = fts.rowid
+            JOIN summaries_fts fts ON s.rowid = fts.rowid
             WHERE {where}
-            ORDER BY rank
+            ORDER BY fts.rank
             LIMIT ?
             """,
             params + [top_n * 5],  # over-fetch then filter in Python

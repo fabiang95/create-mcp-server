@@ -20,7 +20,7 @@ from middleware.session import (
 from middleware.access_control import get_accessible_docids
 from middleware.tracing import trace
 from db.connection import init_db
-from db.queries import get_user_by_username, get_valid_interests, get_all_interests
+from db.queries import get_user_by_username, get_valid_interests, get_all_interests, get_accessible_docids
 
 import tools.query_event as _query_event
 import tools.query_character as _query_character
@@ -76,10 +76,16 @@ def identify(session_id: str, username: str) -> dict:
         trace("identify", session_id, username=username, result="not_found")
         return {
             "status": "error",
-            "message": f"Username '{username}' not found. Please try again.",
+            "action_required": "re_identify",
+            "message": (
+                f"Username '{username}' was not found in the system. "
+                "The user could not be authenticated. "
+                "Please ask the user to provide a valid username and call identify() again."
+            ),
         }
 
-    identify_session(session_id, user["user_id"], username, user["role"])
+    accessible_docids = get_accessible_docids(user["user_id"])
+    identify_session(session_id, user["user_id"], username, user["role"], accessible_docids)
     trace("identify", session_id, username=username, role=user["role"], result="ok")
     session = get_session(session_id)
     first_today = is_first_session_today(session_id)

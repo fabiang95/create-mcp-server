@@ -1,8 +1,7 @@
 """Access control: group membership resolution and 403 enforcement."""
 from __future__ import annotations
 
-from middleware.session import get_user_id
-from db.queries import get_accessible_docids as _get_accessible_docids
+from middleware.session import get_user_id, get_cached_accessible_docids
 
 
 class AccessDeniedError(Exception):
@@ -19,13 +18,13 @@ def resolve_access(session_id: str, target_docids: list[str]) -> list[str]:
     if not user_id:
         raise AccessDeniedError("Session is not identified. Please provide your username first.")
 
-    accessible = get_accessible_docids(user_id)
+    accessible = get_accessible_docids(session_id)
     allowed = [d for d in target_docids if d in accessible]
     if not allowed:
         raise AccessDeniedError("No accessible documents for this query.")
     return allowed
 
 
-def get_accessible_docids(user_id: str) -> set[str]:
-    """Read pre-computed accessible_docids from user_access table."""
-    return _get_accessible_docids(user_id)
+def get_accessible_docids(session_id: str) -> set[str]:
+    """Return the accessible docids for this session from the in-memory cache."""
+    return get_cached_accessible_docids(session_id)
