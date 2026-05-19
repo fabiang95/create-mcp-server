@@ -51,11 +51,10 @@ def register(mcp):
             if docids & accessible:
                 results.append(
                     {
-                        "entity_id": row["entity_id"],
+                        "entity_id": row["id"],
                         "name": row.get("name", ""),
                         "aliases": _parse_list(row.get("aliases")),
                         "type": row.get("type", ""),
-                        "universe": row.get("universe", ""),
                         "docids": list(docids & accessible),
                     }
                 )

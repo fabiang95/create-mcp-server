@@ -56,7 +56,7 @@ def register(mcp):
             if source_docids & accessible:
                 results.append(
                     {
-                        "event_id": row["event_id"],
+                        "event_id": str(row["id"]),
                         "name": row.get("name", ""),
                         "date": row.get("date", ""),
                         "location": row.get("location", ""),

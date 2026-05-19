@@ -28,7 +28,7 @@ def _resolve_entity(
         return resolved[0], None
     return None, [
         {
-            "entity_id": e["entity_id"],
+            "entity_id": e["id"],
             "name": e.get("name", ""),
             "type": e.get("type", ""),
             "universe": e.get("universe", ""),
@@ -86,17 +86,14 @@ def register(mcp):
         if not b:
             return "No matching character found for the second entity in your accessible corpus."
 
-        interactions = get_interactions(a["entity_id"], b["entity_id"], accessible)
+        interactions = get_interactions(a["id"], b["id"], accessible)
 
         results = [
             {
-                "interaction_id": i.get("interaction_id"),
-                "date": i.get("date"),
-                "type": i.get("type"),
-                "description": i.get("description"),
-                "sentiment": i.get("sentiment"),
-                "source_docid": i.get("source_docid"),
-                "source_event_id": i.get("source_event_id"),
+                "interaction_id": i.get("id"),
+                "character_a": i.get("character_a"),
+                "character_b": i.get("character_b"),
+                "evidence": i.get("evidence", []),
             }
             for i in interactions
         ]

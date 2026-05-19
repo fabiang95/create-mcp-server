@@ -60,23 +60,21 @@ def get_accessible_docids(user_id: str) -> set[str]:
 def get_event(event_id: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM events WHERE event_id = ?", (event_id,)
+            "SELECT * FROM events WHERE id = ?", (event_id,)
         ).fetchone()
     return dict(row) if row else None
 
 
 def search_events_fts(description: str) -> list[dict]:
+    term = f"%{description.lower()}%"
     with get_db() as conn:
         rows = conn.execute(
             """
-            SELECT e.*
-            FROM events e
-            JOIN events_fts fts ON e.rowid = fts.rowid
-            WHERE events_fts MATCH ?
-              AND e.confidence >= ?
-            ORDER BY fts.rank
+            SELECT * FROM events
+            WHERE (LOWER(name) LIKE ? OR LOWER(participants) LIKE ? OR LOWER(topics) LIKE ?)
+              AND confidence >= ?
             """,
-            (description, EVENT_CONFIDENCE_THRESHOLD),
+            (term, term, term, EVENT_CONFIDENCE_THRESHOLD),
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -89,9 +87,9 @@ def list_events_filtered(
 ) -> list[dict]:
     clauses = [f"confidence >= {EVENT_CONFIDENCE_THRESHOLD}"]
     params: list[Any] = []
+    # events table has no universe column — ignore this filter
     if universe:
-        clauses.append("universe = ?")
-        params.append(universe)
+        pass
     if date_from:
         clauses.append("date >= ?")
         params.append(date_from)
@@ -112,14 +110,16 @@ def list_events_filtered(
 
 def get_events_for_entity(entity_id: str) -> list[dict]:
     with get_db() as conn:
+        row = conn.execute("SELECT event_ids FROM entities WHERE id = ?", (entity_id,)).fetchone()
+    if not row:
+        return []
+    event_ids = json.loads(row["event_ids"] or "[]")
+    if not event_ids:
+        return []
+    placeholders = ",".join("?" * len(event_ids))
+    with get_db() as conn:
         rows = conn.execute(
-            """
-            SELECT e.*
-            FROM events e
-            JOIN entity_events ee ON e.event_id = ee.event_id
-            WHERE ee.entity_id = ?
-            """,
-            (entity_id,),
+            f"SELECT * FROM events WHERE id IN ({placeholders})", event_ids
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -131,22 +131,17 @@ def get_events_for_entity(entity_id: str) -> list[dict]:
 def get_entity(entity_id: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM entities WHERE entity_id = ?", (entity_id,)
+            "SELECT * FROM entities WHERE id = ?", (entity_id,)
         ).fetchone()
     return dict(row) if row else None
 
 
 def search_entities_fts(description: str) -> list[dict]:
+    term = f"%{description.lower()}%"
     with get_db() as conn:
         rows = conn.execute(
-            """
-            SELECT en.*
-            FROM entities en
-            JOIN entities_fts fts ON en.rowid = fts.rowid
-            WHERE entities_fts MATCH ?
-            ORDER BY fts.rank
-            """,
-            (description,),
+            "SELECT * FROM entities WHERE name_lower LIKE ?",
+            (term,),
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -154,9 +149,6 @@ def search_entities_fts(description: str) -> list[dict]:
 def list_entities_filtered(universe: str | None, entity_type: str | None) -> list[dict]:
     clauses: list[str] = []
     params: list[Any] = []
-    if universe:
-        clauses.append("universe = ?")
-        params.append(universe)
     if entity_type:
         clauses.append("type = ?")
         params.append(entity_type)
@@ -186,29 +178,20 @@ def search_summaries_fts(
     themes: list[str] | None = None,
     top_n: int = 10,
 ) -> list[dict]:
-    clauses = ["summaries_fts MATCH ?"]
-    params: list[Any] = [query]
+    term = f"%{query.lower()}%"
+    clauses = ["(LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(themes) LIKE ?)"]
+    params: list[Any] = [term, term, term]
 
-    if universe:
-        clauses.append("s.universe = ?")
-        params.append(universe)
     if themes:
         for theme in themes:
-            clauses.append("s.themes LIKE ?")
-            params.append(f"%{theme}%")
+            clauses.append("LOWER(themes) LIKE ?")
+            params.append(f"%{theme.lower()}%")
 
     where = " AND ".join(clauses)
     with get_db() as conn:
         rows = conn.execute(
-            f"""
-            SELECT s.*
-            FROM summaries s
-            JOIN summaries_fts fts ON s.rowid = fts.rowid
-            WHERE {where}
-            ORDER BY fts.rank
-            LIMIT ?
-            """,
-            params + [top_n * 5],  # over-fetch then filter in Python
+            f"SELECT * FROM summaries WHERE {where} LIMIT ?",
+            params + [top_n * 5],
         ).fetchall()
 
     results = [dict(r) for r in rows if r["systemdocid"] in accessible_docids]
@@ -377,21 +360,41 @@ def get_interactions(
     entity_b_id: str,
     accessible_docids: set[str],
 ) -> list[dict]:
-    """Return all interactions between two entities restricted to accessible docs, ordered by date asc."""
+    """Return interactions between two entities restricted to accessible docs.
+
+    The interactions table stores character names and evidence as a JSON array of
+    {docid, chunk_ids, event} objects. We resolve entity IDs to names, then filter
+    evidence entries to only those in accessible_docids.
+    """
     if not accessible_docids:
         return []
-    placeholders = ",".join("?" * len(accessible_docids))
-    params: list = [entity_a_id, entity_b_id, entity_b_id, entity_a_id] + list(accessible_docids)
+
+    a = get_entity(entity_a_id)
+    b = get_entity(entity_b_id)
+    if not a or not b:
+        return []
+
+    name_a, name_b = a["name"], b["name"]
+
     with get_db() as conn:
         rows = conn.execute(
-            f"""
-            SELECT *
-            FROM interactions
-            WHERE ((entity_a_id = ? AND entity_b_id = ?)
-                OR (entity_a_id = ? AND entity_b_id = ?))
-              AND source_docid IN ({placeholders})
-            ORDER BY date ASC
+            """
+            SELECT * FROM interactions
+            WHERE (character_a = ? AND character_b = ?)
+               OR (character_a = ? AND character_b = ?)
             """,
-            params,
+            (name_a, name_b, name_b, name_a),
         ).fetchall()
-    return [dict(r) for r in rows]
+
+    results = []
+    for row in rows:
+        evidence = json.loads(row["evidence"] or "[]")
+        accessible_evidence = [e for e in evidence if e.get("docid") in accessible_docids]
+        if accessible_evidence:
+            results.append({
+                "id": row["id"],
+                "character_a": row["character_a"],
+                "character_b": row["character_b"],
+                "evidence": accessible_evidence,
+            })
+    return results

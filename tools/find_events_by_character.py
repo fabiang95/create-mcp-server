@@ -58,10 +58,9 @@ def register(mcp):
         if len(resolved) > 1:
             clarifications = [
                 {
-                    "entity_id": e["entity_id"],
+                    "entity_id": e["id"],
                     "name": e.get("name", ""),
                     "type": e.get("type", ""),
-                    "universe": e.get("universe", ""),
                 }
                 for e in resolved
             ]
@@ -71,7 +70,7 @@ def register(mcp):
             )
 
         entity = resolved[0]
-        events = get_events_for_entity(entity["entity_id"])
+        events = get_events_for_entity(entity["id"])
 
         # Access filter: keep events where at least one source_docid is accessible
         results = []
@@ -81,7 +80,7 @@ def register(mcp):
             if allowed:
                 results.append(
                     {
-                        "event_id": ev["event_id"],
+                        "event_id": str(ev["id"]),
                         "name": ev.get("name", ""),
                         "date": ev.get("date", ""),
                         "participants": _parse_list(ev.get("participants")),
